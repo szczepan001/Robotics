@@ -1,0 +1,163 @@
+1 'Szczepan Szczesiak, Mikołaj Cemel
+2 base(0,0,0,0,0,0)
+3 tool(0,0,0,0,0,0)
+4 spd 100 'mm/s
+5 jovrd 10 'rad/s
+6 ovrd 50 '%
+7 accel 50,50
+8 cnt 1,10,10
+9 GOSUB *grippZero
+10 GOSUB *grippOpen
+11 '-----------------
+12 servo on
+13 wait m_svo(1)=1
+14 cmp off 
+15 collvl 90,90,90,90,90,90,,
+16 'colchk on
+17 '-------
+18 'Wyznaczenie pozycji posredniej
+19 P1up = P1down
+20 P1up.Z = P1up.Z + 100
+21 P2up = P2down
+22 P2up.Z = P2up.Z + 100
+23 P3down = P2down
+24 P3down.Z = P3down.Z + 100 'wymiar klocka
+25 P3up = P3down
+26 P3up.Z = P3up.Z + 100
+27 P4down = P3down
+28 P4down.Z = P4down.Z + 100 'wymiar klocka
+29 P4up = P4down
+30 P4up.Z = P4up.Z + 100
+31 'Wykonanie ruchu
+32 '----------1-----------
+33 GOSUB *grippOpen
+34 CNT 1, 50, 50
+35 MOV P1up 'Ruch z interp. osiową
+36 CNT 0, 0, 0
+37 MVS P1down 'Pozycja pobrania klocka
+38 GOSUB *grippClose 'Zamknięcie chwytaka
+39 CNT 1, 50, 50
+40 MVS P1up 'Ruch do pozycji pośredniej
+41 '--------1poz-------
+42 MVS P2up 'Ruch do pozycji pośredniej
+43 CNT 0, 0, 0
+44 MVS P2down 'Pozycja odłożenia klocka
+45 GOSUB *grippOpen 'Otwarcie chwytaka
+46 CNT 1, 50, 50
+47 MVS P2up 'Ruch do pozycji pośredniej
+48 '-----------2---------------
+49 MOV P1up 'Ruch z interp. osiową
+50 CNT 0, 0, 0
+51 MVS P1down 'Pozycja pobrania klocka
+52 GOSUB *grippClose 'Zamknięcie chwytaka
+53 CNT 1, 50, 50
+54 MVS P1up 'Ruch do pozycji pośredniej
+55 '--------2poz-------
+56 MVS P3up 'Ruch do pozycji pośredniej
+57 CNT 0, 0, 0
+58 MVS P3down 'Pozycja odłożenia klocka
+59 GOSUB *grippOpen 'Otwarcie chwytaka
+60 CNT 1, 50, 50
+61 MVS P3up 'Ruch do pozycji pośredniej
+62 '-----------3---------------
+63 MOV P1up 'Ruch z interp. osiową
+64 CNT 0, 0, 0
+65 MVS P1down 'Pozycja pobrania klocka
+66 GOSUB *grippClose 'Zamknięcie chwytaka
+67 CNT 1, 50, 50
+68 MVS P1up 'Ruch do pozycji pośredniej
+69 '--------3poz-------
+70 MVS P4up 'Ruch do pozycji pośredniej
+71 CNT 0, 0, 0
+72 MVS P4down 'Pozycja odłożenia klocka
+73 GOSUB *grippOpen 'Otwarcie chwytaka
+74 CNT 1, 50, 50
+75 MVS P4up 'Ruch do pozycji pośredniej
+76 MOV J0
+77 servo off
+78 end
+79 '==========================================================================
+80 '===== Zerowanie chwytaka
+81 '==========================================================================
+82 	*grippZero
+83 		*grZeroLoop
+84 			'Zerowanie potencjalnego sygnału błędu
+85 			M_Out(26) = 0 'IN0
+86 			M_Out(6) = 0 'IN1
+87 			M_Out(18) = 0 'IN2
+88 			M_Out(19) = 1 'IN3
+89 			DLY 0.25 'Czekanie 0,25s
+90 			M_Out(26) = 1
+91 			DLY 0.25 'Czekanie 0,25s
+92 			'Zerowanie sygnałów wejściowych chwytaka
+93 			M_Out(26) = 0 'IN0
+94 			M_Out(6) = 0 'IN1
+95 			M_Out(18) = 0 'IN2
+96 			M_Out(19) = 0 'IN3
+97 			DLY 0.25 'Czekanie 0,25s
+98 			M_Out(26) = 1
+99 			DLY 0.5 'Czekanie 0,5s
+100 			'Czekanie na pojawienia sie informacji o zakonczeniu chwytania
+101 			WAIT M_In(16)=0
+102 			DLY 0.25 'Czekanie 0,25s
+103 			M_Out(26) = 0
+104 	'-----
+105 	'IF M_In(4)=0 GOTO *grZeroLoop
+106 	RETURN
+107 '==========================================================================
+108 '===== Zamykanie chwytaka
+109 '==========================================================================
+110 	*grippClose
+111 		*grCloseLoop
+112 		'Ewentualne wyzerowanie errora chwytaka
+113 		'IF M_In(4)=0 GOTO *grippError
+114 			DLY 0.25 'Czekanie 0,25s
+115 			M_Out(26) = 1
+116 			DLY 0.25 'Czekanie 0,25s
+117 '			Zerowanie sygnałów wejściowych chwytaka
+118 			M_Out(26) = 0 'IN0
+119 			M_Out(6) = 1 'IN1
+120 			M_Out(18) = 1 'IN2
+121 			M_Out(19) = 0 'IN3
+122 			DLY 0.25 'Czekanie 0,25s
+123 			M_Out(26) = 1
+124 			DLY 0.5 'Czekanie 0,5s
+125 'Czekanie na pojawienia sie informacji o zakonczeniu chwytania
+126 			M1 = M_TIMER(1)
+127 			*waitIn16
+128 			M2 = M_TIMER(1)
+129 			IF (M2-M1<1500) AND (M_In(16)=1) GOTO *waitIn16
+130 			DLY 0.25 'Czekanie 0,25s
+131 			M_Out(26) = 0
+132 	'IF M_In(4)=0 GOTO *grCloseLoop
+133 	RETURN
+134 '==========================================================================
+135 '===== Otwieranie chwytaka
+136 '==========================================================================
+137 	*grippOpen
+138 		'Zerowanie potencjalnego sygnału błędu
+139 		M_Out(26) = 0 'IN0
+140 		M_Out(6) = 0 'IN1
+141 		M_Out(18) = 0 'IN2
+142 		M_Out(19) = 1 'IN3
+143 		DLY 0.25 'Czekanie 0,25s
+144 		M_Out(26) = 1
+145 		DLY 0.25 'Czekanie 0,25s
+146 		'Zerowanie sygnałów wejściowych chwytaka
+147 		M_Out(26) = 0 'IN0
+148 		M_Out(6) = 1 'IN1
+149 		M_Out(18) = 0 'IN2
+150 		M_Out(19) = 0 'IN3
+151 		DLY 0.25 'Czekanie 0,25s
+152 		M_Out(26) = 1
+153 		DLY 0.5 'Czekanie 0,5s
+154 '----
+155 		*grOpenLoop
+156 		IF M_In(16)=1 GOTO *grOpenLoop
+157 '---
+158 		DLY 0.25 'Czekanie 0,25s
+159 		M_Out(26) = 0
+160 	RETURN
+J0=(0.000,-0.000,90.000,0.000,-90.000,0.000)
+P1down=(1228.900,0.000,604.360,-0.000,-0.000,0.000)(6,0)
+P2down=(1228.900,-502.690,537.650,-0.000,-0.000,0.000)(6,0)
