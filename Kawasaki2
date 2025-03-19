@@ -1,0 +1,385 @@
+.PROGRAM SignalInit()
+	PRINT "Definicja wejsc i wyjsc robota"
+	O_TACKA_READY = 5
+	O_GRIP_IN1 = 7
+	O_GRIP_EXEC = 8
+	O_GRIP_IN2 = 10
+	O_GRIP_IN3 = 11
+	O_IN_HOME_POS = 12
+
+	I_TACKA_IN_POS = 1001
+	I_GRIP_REFER = 1005
+	I_GRIP_ERROR = 1006
+	I_GRIP_DONE = 1007
+	I_GRIP_MOVE_END = 1008
+	I_ROB_IN_HOME = 1013
+	RETURN
+.END
+
+.PROGRAM gripperError()
+	.first = 1
+
+	WHILE SIG(-I_GRIP_ERROR) OR .first==1 DO
+		PRINT "Chwytak - kasowanie bledu"
+		.first = 0 
+		; Kasowanie potencjalnego errora
+		SIGNAL -O_GRIP_EXEC ;IN0
+		SIGNAL -O_GRIP_IN1 ;IN1
+		SIGNAL -O_GRIP_IN2 ;IN2
+		SIGNAL O_GRIP_IN3 ;IN3
+		TWAIT 0.25 
+		; Uruchomienie kasowania bledu
+		SIGNAL O_GRIP_EXEC
+		TWAIT 0.25
+		SIGNAL -O_GRIP_EXEC ;IN0
+	END
+	PRINT "Chwytak - skasowany blad"
+	RETURN
+.END
+
+.PROGRAM gripperZero()
+	PRINT "Zerowanie chwytaka"
+	; Kasowanie potencjalnego bledu chwytaka
+	CALL gripperError
+	; Zerowanie sygnalow wejsciowych chwytaka
+	SIGNAL -O_GRIP_EXEC ;IN0
+	SIGNAL -O_GRIP_IN1 ;IN1
+	SIGNAL -O_GRIP_IN2 ;IN2
+	SIGNAL 	-O_GRIP_IN3 ;IN3
+	TWAIT 0.25
+	; Uruchomienie zerowania chwytaka
+	SIGNAL O_GRIP_EXEC
+	TWAIT 0.5
+	; Oczekiwanie na pojawienie sie sygnalu gotowosci chwytaka
+	WHILE SIG(I_GRIP_MOVE_END) DO
+
+	END
+	TWAIT 0.25
+	SIGNAL -O_GRIP_EXEC ;IN0
+	PRINT "Chwytak wyzerowany"
+	RETURN
+.END
+
+.PROGRAM gripperOpen()
+	PRINT "Otwarcie chwytaka - wersja prostsza"
+	.first = 1
+	WHILE SIG(-I_GRIP_ERROR) OR .first==1 DO
+		.first = 0 
+		;Sprawdzamy czy gripper jest gotowy do ruchu
+		IF SIG(-I_GRIP_ERROR) THEN
+			CALL gripperError
+		END
+		; Ustawienie sygnalow wejsciowych chwytaka
+		SIGNAL -O_GRIP_EXEC ;IN0
+		SIGNAL O_GRIP_IN1 ;IN1
+		SIGNAL -O_GRIP_IN2 ;IN2
+		SIGNAL -O_GRIP_IN3 ;IN3
+		TWAIT 0.25
+		; Uruchomienie zerowania chwytaka
+		SIGNAL O_GRIP_EXEC
+		TWAIT 0.5
+		; Oczekiwanie na pojawienie sie sygnalu informującego o zakonczeniu ruchu
+		TIMER(2) = 0
+		WHILE (SIG(I_GRIP_MOVE_END)) AND (TIMER(2)<2.5) DO
+			
+		END
+		TWAIT 0.25
+		SIGNAL -O_GRIP_EXEC ;IN0
+	END
+	PRINT "Chwytak otwarty"
+	RETURN
+.END
+
+.PROGRAM gripperClose()
+	PRINT "Zamkniecie chwytaka"
+
+	.first = 1
+	WHILE SIG(-I_GRIP_ERROR) OR .first==1 DO
+		.first = 0
+
+		;Sprawdzamy czy gripper jest gotowy do ruchu
+		IF SIG(-I_GRIP_ERROR) THEN
+			CALL gripperError
+		END
+		; Ustawienie sygnalow wejsciowych chwytaka
+		SIGNAL -O_GRIP_EXEC ;IN0
+		SIGNAL O_GRIP_IN1 ;IN1
+		SIGNAL O_GRIP_IN2 ;IN2
+		SIGNAL -O_GRIP_IN3 ;IN3
+		TWAIT 0.25
+		; Uruchomienie zerowania chwytaka
+		SIGNAL O_GRIP_EXEC
+		TWAIT 0.5
+		; Oczekiwanie na pojawienie sie sygnalu informującego o zakonczeniu ruchu
+		TIMER(2) = 0
+		WHILE (SIG(I_GRIP_MOVE_END)) AND (TIMER(2)<2.5) DO
+		END
+		TWAIT 0.25
+		SIGNAL -O_GRIP_EXEC ;IN0
+	END
+	PRINT "Chwytak zamkniety"
+	RETURN
+.END
+
+.PROGRAM interfejsIni()
+	; Przypisanie adresów zmiennych, wykorzystywanych do obslugi panelu operatora
+	GUI_LAMPKA = 2001 ; Mrugajaca lampka
+	GUI_KONIEC = 2002 ; Zakonczenie pracy programu
+
+	; Przypisanie poczatkowych wartosci sygnalow
+	GUI_LAMPKA = FALSE
+	GUI_KONIEC = FALSE
+
+	RETURN
+.END
+
+.PROGRAM interfejsGo()
+	; Obsluga panelu operatora - niekonczaca sie petla
+	.loop = TRUE
+	TIMER(3) = 0
+
+	WHILE .loop==TRUE DO
+		; Czy trzeba zakonczyc petle
+		IF SIG(GUI_KONIEC) THEN
+			.loop = FALSE
+		END
+
+		; Mruganie lampki
+		IF TIMER(3)>1 THEN
+			IF SIG(GUI_LAMPKA) THEN
+				SIGNAL -GUI_LAMPKA
+			ELSE
+				SIGNAL GUI_LAMPKA
+			END
+			TIMER(3) = 0
+		END
+
+	END
+	RETURN
+.END
+
+.PROGRAM main()
+	
+	CP ON
+    	RIGHTY
+	ABOVE
+    	SPEED 200MM/S, 20DEG/S ALWAYS 
+	ACCURACY 1 ALWAYS
+	CALL SignalInit
+	
+		
+	.X[0] = 0
+	.X[1] = 0
+	.X[2] = 0
+	.X[3] = 0
+	.X[4] = 0
+	.X[5] = 0
+	
+	DECOMPOSE .X[0] = PK1_DOWN
+	POINT PK1 = TRANS(.X[0], .X[1], .X[2] + 200, .X[3], .X[4], .X[5])
+	DECOMPOSE .X[0] = PK2_DOWN
+	POINT PK2 = TRANS(.X[0], .X[1], .X[2] + 200, .X[3], .X[4], .X[5])
+	DECOMPOSE .X[0] = PK3_DOWN
+	POINT PK3 = TRANS(.X[0], .X[1], .X[2] + 200, .X[3], .X[4], .X[5])
+	DECOMPOSE .X[0] = PT1_DOWN
+	POINT PT1 = TRANS(.X[0], .X[1], .X[2] + 200, .X[3], .X[4], .X[5])
+	DECOMPOSE .X[0] = PT2_DOWN
+	POINT PT2 = TRANS(.X[0], .X[1], .X[2] + 200, .X[3], .X[4], .X[5])
+	DECOMPOSE .X[0] = PT3_DOWN
+	POINT PT3 = TRANS(.X[0], .X[1], .X[2] + 200, .X[3], .X[4], .X[5])
+
+	JMOVE HOME
+	
+	.symulacja = 1
+	
+	IF .symulacja == 1 THEN
+		PRINT "Oczekiwanie na tacke"
+	ELSE
+		SWAIT I_TACKA_IN_POS
+	END
+	
+	SIGNAL -O_TACKA_READY
+
+	IF .symulacja == 1 THEN
+		PRINT "Otwarcie chwytaka"
+	ELSE
+		CALL gripperopen
+	END
+	
+
+	LMOVE PK1
+	LMOVE PK1_DOWN
+	
+	BREAK
+	
+	IF .symulacja == 1 THEN
+		PRINT "Zamkniecie chwytaka"
+	ELSE
+		CALL gripperclose
+	END
+	
+	LMOVE PK1
+	LMOVE PT1
+	LMOVE PT1_DOWN
+	
+	BREAK
+
+	IF .symulacja == 1 THEN
+		PRINT "Otwarcie chwytaka"
+	ELSE
+		CALL gripperopen
+	END
+
+  	
+	LMOVE PT1
+	LMOVE PK2
+	LMOVE PK2_DOWN
+	
+	BREAK
+	 
+	IF .symulacja == 1 THEN
+		PRINT "Zamkniecie chywtaka"
+	ELSE
+		CALL gripperclose
+	END
+	
+	
+	
+	LMOVE PK2
+	LMOVE PT2
+	LMOVE PT2_DOWN
+	
+	BREAK
+	 
+	IF .symulacja == 1 THEN
+		PRINT "Otwarcie chwytaka"
+	ELSE
+		CALL gripperopen
+	END
+	
+	
+	LMOVE PT2
+	LMOVE PK3
+	LMOVE PK3_DOWN
+	
+	BREAK
+	 
+	IF .symulacja == 1 THEN
+		PRINT "Zamkniecie chwytaka"
+	ELSE
+		CALL gripperclose
+	END
+		
+	LMOVE PK3
+	LMOVE PT3
+	LMOVE PT3_DOWN
+	
+	BREAK
+	 
+	IF .symulacja == 1 THEN
+		PRINT "Otwarcie chwytaka"
+	ELSE
+		CALL gripperopen
+	END
+
+	LMOVE PT3
+	JMOVE HOME
+
+	SIGNAL O_TACKA_READY
+	
+	TWAIT 3
+
+	IF .symulacja == 1 THEN
+		PRINT "Oczekiwanie na tacke"
+	ELSE
+		SWAIT I_TACKA_IN_POS
+	END
+
+	SIGNAL -O_TACKA_READY
+
+	IF .symulacja == 1 THEN
+		PRINT "Otwarcie chwytaka"
+	ELSE
+		CALL gripperopen
+	END
+	
+	LMOVE PT1
+	LMOVE PT1_DOWN
+	
+	BREAK
+	IF .symulacja == 1 THEN
+		PRINT "Zamkniecie chwytaka"
+	ELSE
+		CALL gripperclose
+	END
+
+	LMOVE PT1
+	LMOVE PK1
+	LMOVE PK1_DOWN
+	
+	BREAK
+	IF .symulacja == 1 THEN
+		PRINT "Otwarcie chwytaka"
+	ELSE
+		CALL gripperopen
+	END
+	
+	LMOVE PK1
+	LMOVE PT2
+	LMOVE PT2_DOWN
+	
+	BREAK
+	IF .symulacja == 1 THEN
+		PRINT "Zamkniecie chwytaka"
+	ELSE
+		CALL gripperclose
+	END
+
+	LMOVE PT2
+	LMOVE PK2
+	LMOVE PK2_DOWN
+	
+	BREAK 
+	IF .symulacja == 1 THEN
+		PRINT "Otwarcie chwytaka"
+	ELSE
+		CALL gripperopen
+	END
+	
+	LMOVE PK2
+	LMOVE PT3
+	LMOVE PT3_DOWN
+	
+	BREAK 
+	IF .symulacja == 1 THEN
+		PRINT "Zamkniecie chwytaka"
+	ELSE
+		CALL gripperclose
+	END
+
+	LMOVE PT3
+	LMOVE PK3
+	LMOVE PK3_DOWN
+	
+	BREAK 
+	IF .symulacja == 1 THEN
+		PRINT "Otwarcie chwytaka"
+	ELSE
+		CALL gripperopen
+	END
+	
+	LMOVE PK3
+	JMOVE HOME
+.END
+
+.TRANS     
+	PK1_DOWN -13 750 86 123 171 -54   
+	PK2_DOWN -13 700 86 123 171 -54    
+	PK3_DOWN -13 650 86 123 171 -54
+	PT1_DOWN 100 677 19 -148 173 43  
+	PT2_DOWN  100 637 19 -148 173 43
+	PT3_DOWN  100 600 19 -148 173 43 
+	HOME -13 750 86 123 171 -54
+.END
+
+	
